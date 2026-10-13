@@ -22,6 +22,7 @@ describe('Telegram HTML metadata escaping', () => {
     for (const label of ['Token Address', 'Name', 'Symbol', 'Pair', 'Dev Buy', 'Tax', 'Twitter', 'Website', 'Telegram', 'About', 'Creator', 'Creator Balance', 'Count Deploys']) {
       expect(body).toContain(`<b>${label}</b>`);
     }
+    expect(body).toContain('<b>Token Address</b> : <code>0xa00866F73Aaead7E0a410386C6ea66B979c40bfC</code>');
     expect(body).toContain('<b>Dev Buy</b> : ~$10.03 (0.013471 BNB)');
     expect(body).toContain('<b>Creator Balance</b> : 1.25 BNB');
     expect(body).not.toContain('Risk / data labels');

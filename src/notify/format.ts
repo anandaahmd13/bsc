@@ -23,7 +23,7 @@ export function formatLaunchAlert(
     : runitup?.taxPercent !== undefined ? `${runitup.taxPercent}% (Runitup API)` : '-';
   const facts = [
     '<b>Runitup launch</b>',
-    `<b>Token Address</b> : <a href="https://bscscan.com/token/${launch.token}">${launch.token}</a>`,
+    `<b>Token Address</b> : <code>${launch.token}</code>`,
     `<b>Name</b> : ${safeTelegramHtml(token.name)}`,
     `<b>Symbol</b> : ${safeTelegramHtml(token.symbol)}`,
     `<b>Pair</b> : ${pair ? `<code>${pair}</code>` : '-'}`,
