@@ -26,7 +26,7 @@ On an empty database the service scans only the mutable reorg window, so deploym
 - The unique event key is `(transaction hash, log index)`. Event, metadata and per-chat outbox rows commit in one transaction before any Telegram request.
 - The last reorg window is replayed. A changed stored block hash rolls back canonical events, cancels unsent alerts, and edits or follows up on already-sent alerts.
 - Alerts distinguish verified factory facts, unverified token source status, unavailable data, and conservative risks. They never say a token is safe or recommend a trade.
-- Every launch alert includes the user-configured GMGN and Based Bot referral buttons. They are disclosed in the message as external referral links; this watcher does not create an order, construct a buy URL for a token, or attest that either venue supports BSC.
+- Every launch alert includes token-specific GMGN and Based Bot referral buttons. Each deep link contains the observed BSC contract address and the configured referral ID. They are disclosed in the message as external referral links; this watcher does not create an order or attest that either venue will support a token.
 
 ## Production checklist
 

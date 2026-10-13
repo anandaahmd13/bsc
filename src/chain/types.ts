@@ -40,6 +40,10 @@ export interface TransactionContext {
   quoteAsset?: Address;
   sniperSeconds?: number;
   sender?: Address;
+  /** Native BNB developer purchase declared in verified factory calldata. */
+  devBuyWei?: bigint;
+  /** Developer purchase declared in the launch quote asset, if any. */
+  devBuyQuoteAmount?: bigint;
 }
 
 export interface TokenMetadata {
@@ -54,7 +58,20 @@ export interface TokenMetadata {
   unavailable: readonly string[];
 }
 
+/** Facts reported by Runitup's own token API; they are not on-chain attestations. */
+export interface RunitupTokenProfile {
+  pair?: Address;
+  taxPercent?: number;
+  twitter?: string;
+  website?: string;
+  telegram?: string;
+  about?: string;
+  creator?: Address;
+  creatorLaunchCount?: number;
+}
+
 export interface LaunchEnrichment {
   token: TokenMetadata;
   transaction: TransactionContext;
+  runitup?: RunitupTokenProfile;
 }

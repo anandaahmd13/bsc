@@ -68,6 +68,82 @@ export const runitupLaunchAbi = [
   },
 ] as const;
 
+/**
+ * Factory entry points which carry the launch parameters. `devBuyWei` is not
+ * emitted by TokenLaunched, so it must be decoded from the factory calldata.
+ */
+const launchParamsComponents = [
+  { name: 'name', type: 'string' },
+  { name: 'symbol', type: 'string' },
+  { name: 'totalSupply', type: 'uint256' },
+  { name: 'feeRecipient', type: 'address' },
+  { name: 'devBuyWei', type: 'uint256' },
+  { name: 'venue', type: 'uint8' },
+  { name: 'quoteToken', type: 'address' },
+  { name: 'devBuyQuoteAmount', type: 'uint256' },
+  { name: 'nonce', type: 'bytes32' },
+] as const;
+
+const taxParamsComponents = [
+  { name: 'buyBps', type: 'uint16' },
+  { name: 'sellBps', type: 'uint16' },
+  { name: 'creatorShareBps', type: 'uint16' },
+  { name: 'liquidityShareBps', type: 'uint16' },
+  { name: 'dividendShareBps', type: 'uint16' },
+  { name: 'burnShareBps', type: 'uint16' },
+  { name: 'sniperSeconds', type: 'uint32' },
+  { name: 'dynamic', type: 'bool' },
+] as const;
+
+const stakeParamsComponents = [
+  { name: 'exitFeeBps', type: 'uint16' },
+  { name: 'cooldownSeconds', type: 'uint32' },
+  { name: 'dripSeconds', type: 'uint32' },
+] as const;
+
+const launchParamsInput = {
+  name: 'params',
+  type: 'tuple',
+  components: launchParamsComponents,
+} as const;
+
+const taxParamsInput = {
+  name: 'tax',
+  type: 'tuple',
+  components: taxParamsComponents,
+} as const;
+
+const stakeParamsInput = {
+  name: 'stake',
+  type: 'tuple',
+  components: stakeParamsComponents,
+} as const;
+
+export const runitupFactoryLaunchAbi = [
+  {
+    type: 'function', name: 'launch', stateMutability: 'payable', inputs: [launchParamsInput], outputs: [],
+  },
+  {
+    type: 'function', name: 'launchSniper', stateMutability: 'payable',
+    inputs: [launchParamsInput, { name: 'sniperSeconds', type: 'uint32' }], outputs: [],
+  },
+  {
+    type: 'function', name: 'launchTaxed', stateMutability: 'payable',
+    inputs: [launchParamsInput, taxParamsInput, stakeParamsInput], outputs: [],
+  },
+  {
+    type: 'function', name: 'launchTaxedLimited', stateMutability: 'payable',
+    inputs: [
+      launchParamsInput,
+      taxParamsInput,
+      stakeParamsInput,
+      { name: 'maxWalletBps', type: 'uint16' },
+      { name: 'maxWalletSeconds', type: 'uint32' },
+    ],
+    outputs: [],
+  },
+] as const;
+
 export const launchEventNames = [
   'TokenLaunched',
   'TaxedTokenLaunched',

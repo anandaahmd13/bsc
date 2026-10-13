@@ -1,8 +1,9 @@
-import { decodeEventLog, getAddress } from 'viem';
+import { decodeEventLog, decodeFunctionData, getAddress } from 'viem';
 import type { Address, Hex } from 'viem';
 import {
   launchEventNames,
   launchTopicValues,
+  runitupFactoryLaunchAbi,
   runitupLaunchAbi,
 } from '../contracts/runitup.js';
 import type { ChainLog, DecodedLaunch, TransactionContext } from './types.js';
@@ -86,4 +87,23 @@ export function decodeTransactionContext(token: Address, logs: readonly ChainLog
     }
   }
   return context;
+}
+
+/** Extract developer-buy values declared by a verified Runitup factory call. */
+export function decodeLaunchCall(data: Hex | undefined): Pick<TransactionContext, 'devBuyWei' | 'devBuyQuoteAmount'> {
+  if (!data || data === '0x') return {};
+  try {
+    const decoded = decodeFunctionData({ abi: runitupFactoryLaunchAbi, data });
+    if (!['launch', 'launchSniper', 'launchTaxed', 'launchTaxedLimited'].includes(decoded.functionName)) return {};
+    const params = decoded.args?.[0];
+    if (!params || typeof params !== 'object') return {};
+    const values = params as { devBuyWei?: unknown; devBuyQuoteAmount?: unknown };
+    return {
+      devBuyWei: asBigInt(values.devBuyWei),
+      devBuyQuoteAmount: asBigInt(values.devBuyQuoteAmount),
+    };
+  } catch {
+    // Not a supported Runitup factory call, or calldata is malformed.
+    return {};
+  }
 }

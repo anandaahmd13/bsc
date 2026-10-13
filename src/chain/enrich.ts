@@ -1,7 +1,8 @@
 import { decodeEventLog, getAddress, toFunctionSelector, zeroAddress } from 'viem';
 import type { Address } from 'viem';
+import { z } from 'zod';
 import { runitupLaunchAbi } from '../contracts/runitup.js';
-import { decodeTransactionContext } from './decode.js';
+import { decodeLaunchCall, decodeTransactionContext } from './decode.js';
 import type { ChainLog, DecodedLaunch, LaunchEnrichment, TokenMetadata } from './types.js';
 import type { RunitupClient } from './rpc.js';
 
@@ -16,6 +17,25 @@ const erc20Abi = [
 
 const EIP1967_IMPLEMENTATION_SLOT =
   '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc' as const;
+
+const runitupTokenResponseSchema = z.object({
+  creatorLaunchCount: z.number().int().nonnegative().optional(),
+  token: z.object({
+    chainId: z.number(),
+    address: z.string(),
+    description: z.string().nullable().optional(),
+    socials: z.object({
+      x: z.string().nullable().optional(),
+      website: z.string().nullable().optional(),
+      telegram: z.string().nullable().optional(),
+    }).nullable().optional(),
+    creatorAddress: z.string().nullable().optional(),
+    poolAddress: z.string().nullable().optional(),
+    taxPct: z.number().nullable().optional(),
+    // Kept for compatibility with prior API responses.
+    creatorLaunchCount: z.number().int().nonnegative().optional(),
+  }),
+});
 
 const withTimeout = async <T>(name: string, promise: Promise<T>, timeoutMs: number, unavailable: string[]): Promise<T | undefined> => {
   let timer: number | undefined;
@@ -63,6 +83,8 @@ export async function enrichLaunch(client: RunitupClient, launch: DecodedLaunch,
     unavailable,
   );
   const receipt = await withTimeout('transaction receipt', client.getTransactionReceipt({ hash: launch.transactionHash }), timeoutMs, unavailable);
+  const launchTransaction = await withTimeout('launch transaction', client.getTransaction({ hash: launch.transactionHash }), timeoutMs, unavailable);
+  const runitup = await withTimeout('Runitup token API', fetchRunitupProfile(launch.token), timeoutMs, unavailable);
 
   const name = result(reads?.[0] as { status: 'success'; result: string } | undefined, 'name()', unavailable);
   const symbol = result(reads?.[1] as { status: 'success'; result: string } | undefined, 'symbol()', unavailable);
@@ -82,6 +104,7 @@ export async function enrichLaunch(client: RunitupClient, launch: DecodedLaunch,
     : [];
   const transaction = {
     ...decodeTransactionContext(launch.token, contextLogs),
+    ...decodeLaunchCall(launchTransaction?.input),
     sender: receipt ? getAddress(receipt.from) : undefined,
   };
   const implementation = implementationSlot && implementationSlot !== '0x' && !/^0x0{64}$/i.test(implementationSlot);
@@ -96,7 +119,37 @@ export async function enrichLaunch(client: RunitupClient, launch: DecodedLaunch,
     proxy: Boolean(implementation),
     unavailable: [...new Set(unavailable)],
   };
-  return { token, transaction };
+  return { token, transaction, runitup };
+}
+
+async function fetchRunitupProfile(address: Address): Promise<import('./types.js').RunitupTokenProfile | undefined> {
+  const response = await fetch(`https://www.runitup.family/api/tokens/${address}?chain=56`, {
+    headers: { accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error(`Runitup token API returned ${response.status}`);
+  const parsed = runitupTokenResponseSchema.safeParse(await response.json());
+  if (!parsed.success || parsed.data.token.chainId !== 56 || parsed.data.token.address.toLowerCase() !== address.toLowerCase()) {
+    throw new Error('Runitup token API response failed token/chain validation');
+  }
+  const api = parsed.data.token;
+  return {
+    pair: asAddress(api.poolAddress),
+    taxPercent: api.taxPct ?? undefined,
+    twitter: api.socials?.x || undefined,
+    website: api.socials?.website || undefined,
+    telegram: api.socials?.telegram || undefined,
+    about: api.description || undefined,
+    creator: asAddress(api.creatorAddress),
+    creatorLaunchCount: parsed.data.creatorLaunchCount ?? api.creatorLaunchCount,
+  };
+}
+
+function asAddress(value: string | null | undefined): Address | undefined {
+  try {
+    return value ? getAddress(value) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function hasPrivilegedSelector(bytecode: `0x${string}` | undefined): readonly string[] {

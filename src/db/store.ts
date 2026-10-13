@@ -21,6 +21,7 @@ export interface StoredOutbox {
   id: number;
   txHash: Hex;
   logIndex: number;
+  token: Address;
   chatId: string;
   body: string;
   status: 'PENDING' | 'SENT' | 'CANCELLED' | 'REORG_NOTICE_PENDING' | 'REORG_NOTICE_SENT';
@@ -124,8 +125,9 @@ export class Store {
 
   getDueOutbox(limit = 20): readonly StoredOutbox[] {
     const rows = this.database.prepare(`
-      SELECT id, tx_hash, log_index, chat_id, body, status, attempts, telegram_message_id
-      FROM outbox WHERE status = 'PENDING' AND next_attempt_at <= ? ORDER BY id LIMIT ?
+      SELECT o.id, o.tx_hash, o.log_index, e.token, o.chat_id, o.body, o.status, o.attempts, o.telegram_message_id
+      FROM outbox o JOIN events e ON e.tx_hash=o.tx_hash AND e.log_index=o.log_index
+      WHERE o.status = 'PENDING' AND o.next_attempt_at <= ? ORDER BY o.id LIMIT ?
     `).all(Date.now(), limit) as Record<string, unknown>[];
     return rows.map(toOutbox);
   }
@@ -143,10 +145,10 @@ export class Store {
   rollbackFrom(block: bigint): readonly StoredOutbox[] {
     const rollback = this.database.transaction(() => {
       const sent = this.database.prepare(`
-        SELECT id, tx_hash, log_index, chat_id, body, status, attempts, telegram_message_id
-        FROM outbox WHERE (tx_hash, log_index) IN (
+        SELECT o.id, o.tx_hash, o.log_index, e.token, o.chat_id, o.body, o.status, o.attempts, o.telegram_message_id
+        FROM outbox o JOIN events e ON e.tx_hash=o.tx_hash AND e.log_index=o.log_index WHERE (o.tx_hash, o.log_index) IN (
           SELECT tx_hash, log_index FROM events WHERE block_number >= ? AND status = 'CANONICAL'
-        ) AND status = 'SENT'
+        ) AND o.status = 'SENT'
       `).all(Number(block)) as Record<string, unknown>[];
       this.database.prepare("UPDATE events SET status='REORGED' WHERE block_number >= ? AND status='CANONICAL'").run(Number(block));
       this.database.prepare(`
@@ -163,8 +165,9 @@ export class Store {
 
   getReorgNotices(limit = 20): readonly StoredOutbox[] {
     const rows = this.database.prepare(`
-      SELECT id, tx_hash, log_index, chat_id, body, status, attempts, telegram_message_id
-      FROM outbox WHERE status='REORG_NOTICE_PENDING' ORDER BY id LIMIT ?
+      SELECT o.id, o.tx_hash, o.log_index, e.token, o.chat_id, o.body, o.status, o.attempts, o.telegram_message_id
+      FROM outbox o JOIN events e ON e.tx_hash=o.tx_hash AND e.log_index=o.log_index
+      WHERE o.status='REORG_NOTICE_PENDING' ORDER BY o.id LIMIT ?
     `).all(limit) as Record<string, unknown>[];
     return rows.map(toOutbox);
   }
@@ -196,6 +199,7 @@ function toOutbox(row: Record<string, unknown>): StoredOutbox {
     id: Number(row.id),
     txHash: String(row.tx_hash) as Hex,
     logIndex: Number(row.log_index),
+    token: String(row.token) as Address,
     chatId: String(row.chat_id),
     body: String(row.body),
     status: String(row.status) as StoredOutbox['status'],
