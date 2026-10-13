@@ -30,7 +30,11 @@ export class TelegramNotifier {
     if (store.isPaused()) return;
     for (const item of store.getDueOutbox()) {
       try {
-        const messageId = await this.send(item.chatId, item.body, launchReferralKeyboard(item.token));
+        const messageId = await this.send(item.chatId, item.body, launchReferralKeyboard({
+          token: item.token,
+          creator: item.creator,
+          transactionHash: item.txHash,
+        }));
         store.markSent(item.id, messageId);
       } catch (error) {
         const retryAfterMs = error instanceof TelegramError && error.retryAfterMs ? error.retryAfterMs : exponentialBackoff(item.attempts);

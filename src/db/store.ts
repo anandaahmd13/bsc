@@ -22,6 +22,7 @@ export interface StoredOutbox {
   txHash: Hex;
   logIndex: number;
   token: Address;
+  creator?: Address;
   chatId: string;
   body: string;
   status: 'PENDING' | 'SENT' | 'CANCELLED' | 'REORG_NOTICE_PENDING' | 'REORG_NOTICE_SENT';
@@ -125,7 +126,7 @@ export class Store {
 
   getDueOutbox(limit = 20): readonly StoredOutbox[] {
     const rows = this.database.prepare(`
-      SELECT o.id, o.tx_hash, o.log_index, e.token, o.chat_id, o.body, o.status, o.attempts, o.telegram_message_id
+      SELECT o.id, o.tx_hash, o.log_index, e.token, e.creator, o.chat_id, o.body, o.status, o.attempts, o.telegram_message_id
       FROM outbox o JOIN events e ON e.tx_hash=o.tx_hash AND e.log_index=o.log_index
       WHERE o.status = 'PENDING' AND o.next_attempt_at <= ? ORDER BY o.id LIMIT ?
     `).all(Date.now(), limit) as Record<string, unknown>[];
@@ -145,7 +146,7 @@ export class Store {
   rollbackFrom(block: bigint): readonly StoredOutbox[] {
     const rollback = this.database.transaction(() => {
       const sent = this.database.prepare(`
-        SELECT o.id, o.tx_hash, o.log_index, e.token, o.chat_id, o.body, o.status, o.attempts, o.telegram_message_id
+        SELECT o.id, o.tx_hash, o.log_index, e.token, e.creator, o.chat_id, o.body, o.status, o.attempts, o.telegram_message_id
         FROM outbox o JOIN events e ON e.tx_hash=o.tx_hash AND e.log_index=o.log_index WHERE (o.tx_hash, o.log_index) IN (
           SELECT tx_hash, log_index FROM events WHERE block_number >= ? AND status = 'CANONICAL'
         ) AND o.status = 'SENT'
@@ -165,7 +166,7 @@ export class Store {
 
   getReorgNotices(limit = 20): readonly StoredOutbox[] {
     const rows = this.database.prepare(`
-      SELECT o.id, o.tx_hash, o.log_index, e.token, o.chat_id, o.body, o.status, o.attempts, o.telegram_message_id
+      SELECT o.id, o.tx_hash, o.log_index, e.token, e.creator, o.chat_id, o.body, o.status, o.attempts, o.telegram_message_id
       FROM outbox o JOIN events e ON e.tx_hash=o.tx_hash AND e.log_index=o.log_index
       WHERE o.status='REORG_NOTICE_PENDING' ORDER BY o.id LIMIT ?
     `).all(limit) as Record<string, unknown>[];
@@ -200,6 +201,7 @@ function toOutbox(row: Record<string, unknown>): StoredOutbox {
     txHash: String(row.tx_hash) as Hex,
     logIndex: Number(row.log_index),
     token: String(row.token) as Address,
+    creator: row.creator === null || row.creator === undefined ? undefined : String(row.creator) as Address,
     chatId: String(row.chat_id),
     body: String(row.body),
     status: String(row.status) as StoredOutbox['status'],

@@ -26,7 +26,11 @@ describe('SQLite durable outbox', () => {
     const store = temporaryStore();
     expect(store.recordLaunch(launch, token, '<b>launch</b>', ['1'])).toBe(true);
     expect(store.recordLaunch(launch, token, '<b>launch</b>', ['1'])).toBe(false);
-    expect(store.getDueOutbox()).toHaveLength(1);
+    expect(store.getDueOutbox()).toMatchObject([{
+      token: launch.token.toLowerCase(),
+      creator: launch.creator?.toLowerCase(),
+      txHash: launch.transactionHash,
+    }]);
     store.close();
   });
 
