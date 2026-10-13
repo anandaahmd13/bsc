@@ -9,7 +9,6 @@ import type { ChainLog, DecodedLaunch } from './chain/types.js';
 import { Store } from './db/store.js';
 import { formatLaunchAlert } from './notify/format.js';
 import { startAdminCommands, TelegramNotifier } from './notify/telegram.js';
-import { labelRisks } from './risk/labels.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 const config = loadConfig();
@@ -24,8 +23,7 @@ async function recordLaunch(launch: DecodedLaunch): Promise<void> {
     enrichLaunch(client, launch),
     client.getBlockNumber(),
   ]);
-  const risks = labelRisks(launch, enrichment);
-  const body = formatLaunchAlert(launch, enrichment, risks, head, config.finalityConfirmations);
+  const body = formatLaunchAlert(launch, enrichment);
   const created = store.recordLaunch(launch, enrichment.token, body, config.telegramChatIds);
   if (created) {
     logger.info({ token: launch.token, event: launch.eventName, tx: launch.transactionHash, block: launch.blockNumber.toString() }, 'canonical Runitup launch recorded');

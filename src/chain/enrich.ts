@@ -37,6 +37,11 @@ const runitupTokenResponseSchema = z.object({
   }),
 });
 
+const bnbUsdTickerSchema = z.object({
+  symbol: z.literal('BNBUSDT'),
+  price: z.coerce.number().positive().finite(),
+});
+
 const withTimeout = async <T>(name: string, promise: Promise<T>, timeoutMs: number, unavailable: string[]): Promise<T | undefined> => {
   let timer: number | undefined;
   try {
@@ -74,6 +79,10 @@ export async function enrichLaunch(client: RunitupClient, launch: DecodedLaunch,
       : []),
   ];
   const reads = await withTimeout('erc20 multicall', client.multicall({ contracts, allowFailure: true }), timeoutMs, unavailable);
+  const creatorBnbBalancePromise = launch.creator
+    ? withTimeout('creator BNB balance', client.getBalance({ address: launch.creator }), timeoutMs, unavailable)
+    : Promise.resolve(undefined);
+  const bnbUsdPricePromise = withTimeout('BNB/USD price', fetchBnbUsdPrice(), timeoutMs, unavailable);
   const bytecode = await withTimeout('bytecode', client.getBytecode({ address: launch.token }), timeoutMs, unavailable);
   const owner = await withTimeout('owner()', client.readContract({ address: launch.token, abi: erc20Abi, functionName: 'owner' }), timeoutMs, unavailable);
   const implementationSlot = await withTimeout(
@@ -85,6 +94,7 @@ export async function enrichLaunch(client: RunitupClient, launch: DecodedLaunch,
   const receipt = await withTimeout('transaction receipt', client.getTransactionReceipt({ hash: launch.transactionHash }), timeoutMs, unavailable);
   const launchTransaction = await withTimeout('launch transaction', client.getTransaction({ hash: launch.transactionHash }), timeoutMs, unavailable);
   const runitup = await withTimeout('Runitup token API', fetchRunitupProfile(launch.token), timeoutMs, unavailable);
+  const [creatorBnbBalance, bnbUsdPrice] = await Promise.all([creatorBnbBalancePromise, bnbUsdPricePromise]);
 
   const name = result(reads?.[0] as { status: 'success'; result: string } | undefined, 'name()', unavailable);
   const symbol = result(reads?.[1] as { status: 'success'; result: string } | undefined, 'symbol()', unavailable);
@@ -105,6 +115,7 @@ export async function enrichLaunch(client: RunitupClient, launch: DecodedLaunch,
   const transaction = {
     ...decodeTransactionContext(launch.token, contextLogs),
     ...decodeLaunchCall(launchTransaction?.input),
+    bnbUsdPrice,
     sender: receipt ? getAddress(receipt.from) : undefined,
   };
   const implementation = implementationSlot && implementationSlot !== '0x' && !/^0x0{64}$/i.test(implementationSlot);
@@ -114,12 +125,23 @@ export async function enrichLaunch(client: RunitupClient, launch: DecodedLaunch,
     decimals,
     totalSupply,
     creatorBalance,
+    creatorBnbBalance,
     bytecode: bytecode ?? undefined,
     owner: typeof owner === 'string' ? getAddress(owner) : undefined,
     proxy: Boolean(implementation),
     unavailable: [...new Set(unavailable)],
   };
   return { token, transaction, runitup };
+}
+
+async function fetchBnbUsdPrice(): Promise<number> {
+  const response = await fetch('https://data-api.binance.vision/api/v3/ticker/price?symbol=BNBUSDT', {
+    headers: { accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error(`BNB/USD ticker returned ${response.status}`);
+  const parsed = bnbUsdTickerSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error('BNB/USD ticker response failed validation');
+  return parsed.data.price;
 }
 
 async function fetchRunitupProfile(address: Address): Promise<import('./types.js').RunitupTokenProfile | undefined> {

@@ -25,7 +25,7 @@ On an empty database the service scans only the mutable reorg window, so deploym
 - WSS provides faster detection when configured; it uses the same SQLite idempotency path as polling.
 - The unique event key is `(transaction hash, log index)`. Event, metadata and per-chat outbox rows commit in one transaction before any Telegram request.
 - The last reorg window is replayed. A changed stored block hash rolls back canonical events, cancels unsent alerts, and edits or follows up on already-sent alerts.
-- Alerts distinguish verified factory facts, unverified token source status, unavailable data, and conservative risks. They never say a token is safe or recommend a trade.
+- Alerts present the requested launch facts only. Fields unavailable at alert time render as `-`; automated risk labels and event-footers are not sent. The service never says a token is safe or recommends a trade.
 - Every launch alert includes token-specific GMGN and Based Bot referral buttons. Each deep link contains the observed BSC contract address and the configured referral ID. They are disclosed in the message as external referral links; this watcher does not create an order or attest that either venue will support a token.
 
 ## Production checklist

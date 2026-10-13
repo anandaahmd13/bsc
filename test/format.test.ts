@@ -15,14 +15,16 @@ describe('Telegram HTML metadata escaping', () => {
       transactionHash: '0xdc36ea456f1886b3a124856ee80cfbc50dd9e262bd18a7462fe91930114edc1e', logIndex: 73,
       blockNumber: 100n, blockHash: '0x4b92889b6817b36e3414bdfa64533d1fef9cc7db4e7ab1441c5c2534857c7aed',
     }, {
-      token: { name: 'Dly', symbol: 'DEL', decimals: 18, creatorBalance: 0n, proxy: false, unavailable: [] },
-      transaction: { devBuyWei: 13_471_427_420_192_330n },
+      token: { name: 'Dly', symbol: 'DEL', decimals: 18, creatorBalance: 0n, creatorBnbBalance: 1_250_000_000_000_000_000n, proxy: false, unavailable: [] },
+      transaction: { devBuyWei: 13_471_427_420_192_330n, bnbUsdPrice: 744.3 },
       runitup: { taxPercent: 1, twitter: 'https://x.example', website: 'https://example.com', telegram: 'https://t.me/example', about: 'About', creatorLaunchCount: 2 },
-    }, [], 101n, 15);
+    });
     for (const label of ['Token Address', 'Name', 'Symbol', 'Pair', 'Dev Buy', 'Tax', 'Twitter', 'Website', 'Telegram', 'About', 'Creator', 'Creator Balance', 'Count Deploys']) {
       expect(body).toContain(`<b>${label}</b>`);
     }
-    expect(body).toContain('<b>Dev Buy</b> : 0.01347142 BNB (factory calldata)');
-    expect(body).toContain('<b>Creator Balance</b> : 0 DEL');
+    expect(body).toContain('<b>Dev Buy</b> : ~$10.03 (0.013471 BNB)');
+    expect(body).toContain('<b>Creator Balance</b> : 1.25 BNB');
+    expect(body).not.toContain('Risk / data labels');
+    expect(body).not.toContain('Event:');
   });
 });

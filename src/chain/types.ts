@@ -44,6 +44,8 @@ export interface TransactionContext {
   devBuyWei?: bigint;
   /** Developer purchase declared in the launch quote asset, if any. */
   devBuyQuoteAmount?: bigint;
+  /** Spot BNB/USD price used only to show the developer-buy USD estimate. */
+  bnbUsdPrice?: number;
 }
 
 export interface TokenMetadata {
@@ -53,7 +55,10 @@ export interface TokenMetadata {
   totalSupply?: bigint;
   bytecode?: Hex;
   owner?: Address;
+  /** Balance of the launched token held by its creator; used for risk analysis. */
   creatorBalance?: bigint;
+  /** Native BNB balance held by the creator wallet at enrichment time. */
+  creatorBnbBalance?: bigint;
   proxy: boolean;
   unavailable: readonly string[];
 }
