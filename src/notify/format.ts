@@ -19,8 +19,8 @@ export function formatLaunchAlert(
   const pair = launch.pool ?? runitup?.pair;
   const creatorBnbBalance = formatNativeAmount(token.creatorBnbBalance);
   const tax = launch.buyBps !== undefined || launch.sellBps !== undefined
-    ? `buy ${formatPercentFromBps(launch.buyBps)} / sell ${formatPercentFromBps(launch.sellBps)} (factory event)`
-    : runitup?.taxPercent !== undefined ? `${runitup.taxPercent}% (Runitup API)` : '-';
+    ? `buy ${formatPercentFromBps(launch.buyBps)} / sell ${formatPercentFromBps(launch.sellBps)}`
+    : runitup?.taxPercent !== undefined ? `${runitup.taxPercent}%` : '-';
   const facts = [
     '<b>Runitup launch</b>',
     `<b>Token Address</b> : <code>${launch.token}</code>`,

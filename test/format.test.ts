@@ -25,6 +25,8 @@ describe('Telegram HTML metadata escaping', () => {
     expect(body).toContain('<b>Token Address</b> : <code>0xa00866F73Aaead7E0a410386C6ea66B979c40bfC</code>');
     expect(body).toContain('<b>Dev Buy</b> : ~$10.03 (0.013471 BNB)');
     expect(body).toContain('<b>Creator Balance</b> : 1.25 BNB');
+    expect(body).toContain('<b>Tax</b> : 1%');
+    expect(body).not.toContain('Runitup API');
     expect(body).not.toContain('Risk / data labels');
     expect(body).not.toContain('Event:');
   });
