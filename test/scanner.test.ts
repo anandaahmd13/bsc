@@ -25,4 +25,36 @@ describe('adaptive getLogs', () => {
     expect(getLogs).toHaveBeenCalledTimes(18); // initial six run concurrently, then six each for 1-4 and 5-8
     expect(getLogs.mock.calls.some(([request]) => request.fromBlock === 1n && request.toBlock === 4n)).toBe(true);
   });
+
+  it('retains the same range when the getLogs backend is behind the reported head', async () => {
+    const getLogs = vi.fn().mockRejectedValue(new Error('block range extends beyond current head block: requested 18, head 10'));
+    const scanner = new DurableScanner(
+      { getLogs } as never,
+      { getCursor: () => undefined, setCursor: vi.fn(), getRecentBlocks: () => [], recordBlock: vi.fn(), rollbackFrom: vi.fn() } as never,
+      config,
+      { onLaunch: vi.fn(), onReorg: vi.fn() },
+      pino({ enabled: false }),
+    );
+    await expect(scanner.scanRange(11n, 18n)).resolves.toBe(false);
+    // The six factory/event requests retain the original range; no smaller
+    // range is attempted and the caller will retry on the next poll.
+    expect(getLogs).toHaveBeenCalledTimes(6);
+    expect(getLogs.mock.calls.every(([request]) => request.fromBlock === 11n && request.toBlock === 18n)).toBe(true);
+  });
+
+  it('does not advance the cursor while waiting for a lagging getLogs backend', async () => {
+    const setCursor = vi.fn();
+    const scanner = new DurableScanner(
+      {
+        getBlockNumber: vi.fn().mockResolvedValue(100n),
+        getLogs: vi.fn().mockRejectedValue(new Error('block range extends beyond current head block: requested 100, head 99')),
+      } as never,
+      { getCursor: () => 99n, setCursor, getRecentBlocks: () => [], recordBlock: vi.fn(), rollbackFrom: vi.fn() } as never,
+      config,
+      { onLaunch: vi.fn(), onReorg: vi.fn() },
+      pino({ enabled: false }),
+    );
+    await scanner.scanOnce();
+    expect(setCursor).not.toHaveBeenCalled();
+  });
 });

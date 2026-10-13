@@ -3,7 +3,7 @@ import type { AppConfig } from '../config.js';
 import type { Store } from '../db/store.js';
 import type { Logger } from 'pino';
 import { decodeLaunchLog } from './decode.js';
-import { isLogRangeError } from './rpc.js';
+import { isLogRangeError, isRpcHeadLagError } from './rpc.js';
 import type { RunitupClient } from './rpc.js';
 import type { ChainLog, DecodedLaunch } from './types.js';
 
@@ -49,7 +49,11 @@ export class DurableScanner {
       while (from <= head) {
         const desiredEnd = from + BigInt(this.chunkSize - 1);
         const to = desiredEnd > head ? head : desiredEnd;
-        await this.scanRange(from, to);
+        const completed = await this.scanRange(from, to);
+        // Do not advance the durable cursor when the provider's getLogs
+        // backend is behind the head it just reported. The next polling pass
+        // retries this exact uncommitted range after POLL_INTERVAL_MS.
+        if (!completed) return;
         this.store.setCursor(to);
         from = to + 1n;
       }
@@ -58,7 +62,8 @@ export class DurableScanner {
     }
   }
 
-  async scanRange(fromBlock: bigint, toBlock: bigint): Promise<void> {
+  /** Returns false only when an RPC getLogs backend is temporarily behind head. */
+  async scanRange(fromBlock: bigint, toBlock: bigint): Promise<boolean> {
     let start = fromBlock;
     while (start <= toBlock) {
       const end = start + BigInt(this.chunkSize - 1) > toBlock ? toBlock : start + BigInt(this.chunkSize - 1);
@@ -68,6 +73,13 @@ export class DurableScanner {
         if (this.chunkSize < this.config.initialChunkSize) this.chunkSize = Math.min(this.config.initialChunkSize, this.chunkSize * 2);
         start = end + 1n;
       } catch (error) {
+        if (isRpcHeadLagError(error)) {
+          this.logger.debug(
+            { fromBlock: start.toString(), toBlock: end.toString() },
+            'RPC getLogs backend is behind its reported head; retaining range for next poll',
+          );
+          return false;
+        }
         if (isLogRangeError(error) && this.chunkSize > this.config.minChunkSize) {
           this.chunkSize = Math.max(this.config.minChunkSize, Math.floor(this.chunkSize / 2));
           this.logger.warn({ fromBlock: start.toString(), toBlock: end.toString(), chunkSize: this.chunkSize }, 'shrinking getLogs range after provider limit');
@@ -76,6 +88,7 @@ export class DurableScanner {
         throw error;
       }
     }
+    return true;
   }
 
   /**

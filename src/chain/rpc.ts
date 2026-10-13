@@ -20,6 +20,14 @@ export function createWebSocketClient(config: AppConfig) {
 }
 
 export function isLogRangeError(error: unknown): boolean {
+  if (isRpcHeadLagError(error)) return false;
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return /(?:range|limit|too many|query returned more than|max results|response size|exceed)/.test(message);
+}
+
+/** A load-balanced RPC can answer getBlockNumber ahead of its getLogs backend. */
+export function isRpcHeadLagError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return /block range extends beyond (?:the )?(?:current |latest )?head(?: block)?/.test(message)
+    || /requested \d+, head \d+/.test(message);
 }
